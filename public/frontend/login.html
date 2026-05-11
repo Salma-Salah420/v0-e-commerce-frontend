@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - ShopHub</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <i class="fas fa-shopping-bag"></i>
+        </div>
+        <h1 class="auth-title">Welcome Back</h1>
+        <p class="auth-subtitle">Sign in to your account to continue</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <input type="email" 
+                 id="email" 
+                 class="form-control" 
+                 placeholder="Enter your email"
+                 required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input type="password" 
+                 id="password" 
+                 class="form-control" 
+                 placeholder="Enter your password"
+                 required>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-btn">
+          <i class="fas fa-sign-in-alt"></i>
+          Sign In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <p>Don't have an account? <a href="register.html">Create one</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    // Check if already logged in
+    if (isLoggedIn()) {
+      window.location.href = 'index.html';
+    }
+
+    // Handle login form submission
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const submitBtn = document.getElementById('login-btn');
+
+      setButtonLoading(submitBtn, true);
+
+      try {
+        const user = await login(email, password);
+        showToast('success', 'Login Successful', `Welcome back, ${user.full_name || user.email}!`);
+        
+        setTimeout(() => {
+          // Redirect admin to admin page, others to home
+          if (user.role === 'admin') {
+            window.location.href = 'admin.html';
+          } else {
+            window.location.href = 'index.html';
+          }
+        }, 1000);
+      } catch (error) {
+        showToast('error', 'Login Failed', error.message);
+        setButtonLoading(submitBtn, false);
+      }
+    });
+  </script>
+</body>
+</html>

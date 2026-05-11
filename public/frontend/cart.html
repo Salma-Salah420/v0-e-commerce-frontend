@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopping Cart - ShopHub</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="index.html" class="navbar-brand">
+        <i class="fas fa-shopping-bag"></i>
+        <span>ShopHub</span>
+      </a>
+
+      <div class="navbar-search">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="Search products...">
+      </div>
+
+      <button class="mobile-menu-btn">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="navbar-nav">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="page-header">
+      <h1 class="page-title">Shopping Cart</h1>
+      <p class="page-subtitle" id="cart-info">Review and manage your cart items</p>
+    </div>
+
+    <!-- Cart Content -->
+    <div class="cart-layout" id="cart-content">
+      <!-- Cart Items -->
+      <div class="cart-items" id="cart-items">
+        <!-- Items loaded by JavaScript -->
+      </div>
+
+      <!-- Cart Summary -->
+      <div class="cart-summary" id="cart-summary">
+        <h3 class="cart-summary-title">Order Summary</h3>
+        
+        <div class="cart-summary-row">
+          <span class="cart-summary-label">Subtotal</span>
+          <span class="cart-summary-value" id="subtotal">$0.00</span>
+        </div>
+        
+        <div class="cart-summary-row">
+          <span class="cart-summary-label">Shipping</span>
+          <span class="cart-summary-value" id="shipping">Free</span>
+        </div>
+        
+        <div class="cart-summary-row">
+          <span class="cart-summary-label">Tax (10%)</span>
+          <span class="cart-summary-value" id="tax">$0.00</span>
+        </div>
+
+        <div class="cart-summary-total">
+          <span class="cart-summary-label">Total</span>
+          <span class="cart-summary-value" id="total">$0.00</span>
+        </div>
+
+        <button class="btn btn-primary btn-lg btn-block mt-3" id="checkout-btn" onclick="checkout()">
+          <i class="fas fa-credit-card"></i>
+          Proceed to Checkout
+        </button>
+
+        <button class="btn btn-outline btn-block mt-2" onclick="clearCartItems()">
+          <i class="fas fa-trash"></i>
+          Clear Cart
+        </button>
+
+        <a href="index.html" class="btn btn-secondary btn-block mt-2">
+          <i class="fas fa-arrow-left"></i>
+          Continue Shopping
+        </a>
+      </div>
+    </div>
+
+    <!-- Empty Cart State -->
+    <div class="empty-cart d-none" id="empty-cart">
+      <i class="fas fa-shopping-cart"></i>
+      <h3>Your cart is empty</h3>
+      <p>Looks like you haven't added any items to your cart yet.</p>
+      <a href="index.html" class="btn btn-primary btn-lg">
+        <i class="fas fa-shopping-bag"></i>
+        Start Shopping
+      </a>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    let cartData = null;
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      await loadCart();
+    });
+
+    async function loadCart() {
+      showLoading();
+
+      try {
+        cartData = await fetchCart();
+        renderCart();
+      } catch (error) {
+        showToast('error', 'Error', error.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function renderCart() {
+      const cartContent = document.getElementById('cart-content');
+      const emptyCart = document.getElementById('empty-cart');
+      const cartItems = document.getElementById('cart-items');
+      const cartInfo = document.getElementById('cart-info');
+
+      const items = cartData?.items || [];
+
+      if (items.length === 0) {
+        cartContent.classList.add('d-none');
+        emptyCart.classList.remove('d-none');
+        return;
+      }
+
+      cartContent.classList.remove('d-none');
+      emptyCart.classList.add('d-none');
+
+      // Update cart info
+      cartInfo.textContent = `You have ${items.length} item${items.length > 1 ? 's' : ''} in your cart`;
+
+      // Render cart items
+      cartItems.innerHTML = items.map(item => `
+        <div class="cart-item" data-item-id="${item.id}">
+          <img src="${item.product?.image_url || item.image_url || 'https://via.placeholder.com/100x100?text=No+Image'}" 
+               alt="${item.product?.name || item.name}" 
+               class="cart-item-image"
+               onerror="this.src='https://via.placeholder.com/100x100?text=No+Image'">
+          
+          <div class="cart-item-details">
+            <h4 class="cart-item-name">${item.product?.name || item.name}</h4>
+            <p class="cart-item-price">${formatCurrency(item.product?.price || item.price)}</p>
+          </div>
+
+          <div class="cart-item-quantity">
+            <button class="quantity-btn" onclick="updateQuantity(${item.id}, ${item.quantity - 1})">
+              <i class="fas fa-minus"></i>
+            </button>
+            <input type="number" 
+                   class="quantity-input" 
+                   value="${item.quantity}" 
+                   min="1" 
+                   max="${item.product?.stock || 99}"
+                   onchange="updateQuantity(${item.id}, this.value)">
+            <button class="quantity-btn" onclick="updateQuantity(${item.id}, ${item.quantity + 1})">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+
+          <div class="cart-item-subtotal">
+            <span class="cart-item-subtotal-label">Subtotal</span>
+            <span class="cart-item-subtotal-value">${formatCurrency((item.product?.price || item.price) * item.quantity)}</span>
+          </div>
+
+          <button class="cart-item-remove" onclick="removeItem(${item.id})">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+      `).join('');
+
+      // Update summary
+      updateSummary(items);
+    }
+
+    function updateSummary(items) {
+      const subtotal = items.reduce((sum, item) => {
+        const price = item.product?.price || item.price;
+        return sum + (price * item.quantity);
+      }, 0);
+
+      const tax = subtotal * 0.10;
+      const total = subtotal + tax;
+
+      document.getElementById('subtotal').textContent = formatCurrency(subtotal);
+      document.getElementById('tax').textContent = formatCurrency(tax);
+      document.getElementById('total').textContent = formatCurrency(total);
+
+      // Disable checkout button if cart is empty
+      const checkoutBtn = document.getElementById('checkout-btn');
+      checkoutBtn.disabled = items.length === 0;
+    }
+
+    async function updateQuantity(itemId, newQuantity) {
+      const quantity = parseInt(newQuantity);
+
+      if (quantity < 1) {
+        removeItem(itemId);
+        return;
+      }
+
+      if (await updateCartItem(itemId, quantity)) {
+        await loadCart();
+      }
+    }
+
+    async function removeItem(itemId) {
+      if (await removeCartItem(itemId)) {
+        await loadCart();
+      }
+    }
+
+    async function clearCartItems() {
+      if (await clearCart()) {
+        await loadCart();
+      }
+    }
+
+    async function checkout() {
+      const checkoutBtn = document.getElementById('checkout-btn');
+      setButtonLoading(checkoutBtn, true);
+
+      try {
+        const order = await createOrder();
+        if (order) {
+          setTimeout(() => {
+            window.location.href = `order-details.html?id=${order.id}`;
+          }, 1000);
+        }
+      } finally {
+        setButtonLoading(checkoutBtn, false);
+      }
+    }
+  </script>
+</body>
+</html>

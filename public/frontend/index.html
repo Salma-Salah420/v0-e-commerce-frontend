@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopHub - Your One-Stop Shop</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="index.html" class="navbar-brand">
+        <i class="fas fa-shopping-bag"></i>
+        <span>ShopHub</span>
+      </a>
+
+      <div class="navbar-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="search-input" placeholder="Search products...">
+      </div>
+
+      <button class="mobile-menu-btn">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="navbar-nav">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="page-header">
+      <h1 class="page-title">Browse Products</h1>
+      <p class="page-subtitle" id="results-info">Discover our amazing collection</p>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filters-section">
+      <div class="filter-group">
+        <label class="filter-label">Category:</label>
+        <select class="filter-select" id="category-filter">
+          <option value="">All Categories</option>
+          <!-- Populated by JavaScript -->
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Sort by:</label>
+        <select class="filter-select" id="sort-filter">
+          <option value="default">Default</option>
+          <option value="price-low">Price: Low to High</option>
+          <option value="price-high">Price: High to Low</option>
+          <option value="name">Name A-Z</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="products-grid" id="products-grid">
+      <!-- Products loaded by JavaScript -->
+    </div>
+
+    <!-- Pagination -->
+    <div id="pagination-container">
+      <!-- Pagination loaded by JavaScript -->
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state d-none" id="empty-state">
+      <i class="fas fa-search"></i>
+      <h3>No products found</h3>
+      <p>Try adjusting your search or filter criteria</p>
+      <button class="btn btn-primary" onclick="resetFilters()">
+        <i class="fas fa-redo"></i>
+        Reset Filters
+      </button>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    // State
+    let currentPage = 1;
+    let currentCategory = null;
+    let currentSearch = null;
+    let categories = [];
+    let allProducts = [];
+    const ITEMS_PER_PAGE = 12;
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Check for search query in URL
+      const searchQuery = getUrlParam('search');
+      if (searchQuery) {
+        document.getElementById('search-input').value = searchQuery;
+        currentSearch = searchQuery;
+      }
+
+      // Load categories and products
+      await loadCategories();
+      await loadProducts();
+
+      // Set up event listeners
+      setupEventListeners();
+    });
+
+    function setupEventListeners() {
+      // Category filter
+      document.getElementById('category-filter').addEventListener('change', (e) => {
+        currentCategory = e.target.value || null;
+        currentPage = 1;
+        loadProducts();
+      });
+
+      // Sort filter
+      document.getElementById('sort-filter').addEventListener('change', () => {
+        sortAndRenderProducts();
+      });
+
+      // Search input
+      const searchInput = document.getElementById('search-input');
+      let searchTimeout;
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          currentSearch = e.target.value.trim() || null;
+          currentPage = 1;
+          loadProducts();
+        }, 500);
+      });
+    }
+
+    async function loadCategories() {
+      try {
+        categories = await fetchCategories();
+        const select = document.getElementById('category-filter');
+        
+        categories.forEach(category => {
+          const option = document.createElement('option');
+          option.value = category.id;
+          option.textContent = category.name;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    }
+
+    async function loadProducts() {
+      showLoading();
+
+      try {
+        const response = await fetchProducts(currentPage, ITEMS_PER_PAGE, currentCategory, currentSearch);
+        
+        // Handle different response structures
+        if (Array.isArray(response)) {
+          allProducts = response;
+        } else if (response.items) {
+          allProducts = response.items;
+        } else if (response.products) {
+          allProducts = response.products;
+        } else {
+          allProducts = [];
+        }
+
+        // Update results info
+        const resultsInfo = document.getElementById('results-info');
+        if (currentSearch) {
+          resultsInfo.textContent = `Search results for "${currentSearch}" (${allProducts.length} products)`;
+        } else if (currentCategory) {
+          const categoryName = categories.find(c => c.id == currentCategory)?.name || 'Selected category';
+          resultsInfo.textContent = `Showing ${categoryName} (${allProducts.length} products)`;
+        } else {
+          resultsInfo.textContent = `Showing ${allProducts.length} products`;
+        }
+
+        sortAndRenderProducts();
+
+        // Calculate total pages
+        const totalItems = response.total || allProducts.length;
+        const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+        renderPaginationUI(totalPages);
+
+      } catch (error) {
+        showToast('error', 'Error', error.message);
+        document.getElementById('products-grid').innerHTML = '';
+        document.getElementById('empty-state').classList.remove('d-none');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function sortAndRenderProducts() {
+      const sortValue = document.getElementById('sort-filter').value;
+      let sortedProducts = [...allProducts];
+
+      switch (sortValue) {
+        case 'price-low':
+          sortedProducts.sort((a, b) => a.price - b.price);
+          break;
+        case 'price-high':
+          sortedProducts.sort((a, b) => b.price - a.price);
+          break;
+        case 'name':
+          sortedProducts.sort((a, b) => a.name.localeCompare(b.name));
+          break;
+      }
+
+      renderProducts(sortedProducts);
+    }
+
+    function renderProducts(products) {
+      const grid = document.getElementById('products-grid');
+      const emptyState = document.getElementById('empty-state');
+
+      if (products.length === 0) {
+        grid.innerHTML = '';
+        emptyState.classList.remove('d-none');
+        return;
+      }
+
+      emptyState.classList.add('d-none');
+      grid.innerHTML = products.map(product => renderProductCard(product)).join('');
+    }
+
+    function renderPaginationUI(totalPages) {
+      const container = document.getElementById('pagination-container');
+      
+      if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '<div class="pagination">';
+
+      // Previous button
+      html += `
+        <button class="pagination-btn" 
+                onclick="changePage(${currentPage - 1})"
+                ${currentPage === 1 ? 'disabled' : ''}>
+          <i class="fas fa-chevron-left"></i>
+        </button>
+      `;
+
+      // Page numbers
+      for (let i = 1; i <= totalPages; i++) {
+        if (
+          i === 1 ||
+          i === totalPages ||
+          (i >= currentPage - 2 && i <= currentPage + 2)
+        ) {
+          html += `
+            <button class="pagination-btn ${i === currentPage ? 'active' : ''}"
+                    onclick="changePage(${i})">
+              ${i}
+            </button>
+          `;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+          html += '<span class="pagination-btn" style="cursor:default">...</span>';
+        }
+      }
+
+      // Next button
+      html += `
+        <button class="pagination-btn" 
+                onclick="changePage(${currentPage + 1})"
+                ${currentPage === totalPages ? 'disabled' : ''}>
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      `;
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function changePage(page) {
+      currentPage = page;
+      loadProducts();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetFilters() {
+      currentCategory = null;
+      currentSearch = null;
+      currentPage = 1;
+      document.getElementById('search-input').value = '';
+      document.getElementById('category-filter').value = '';
+      document.getElementById('sort-filter').value = 'default';
+      
+      // Clear URL params
+      window.history.replaceState({}, '', 'index.html');
+      
+      loadProducts();
+    }
+  </script>
+</body>
+</html>

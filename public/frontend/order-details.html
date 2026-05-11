@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Details - ShopHub</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="index.html" class="navbar-brand">
+        <i class="fas fa-shopping-bag"></i>
+        <span>ShopHub</span>
+      </a>
+
+      <div class="navbar-search">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="Search products...">
+      </div>
+
+      <button class="mobile-menu-btn">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="navbar-nav">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="page-header">
+      <a href="orders.html" class="btn btn-outline btn-sm mb-2">
+        <i class="fas fa-arrow-left"></i>
+        Back to Orders
+      </a>
+      <h1 class="page-title" id="order-title">Order Details</h1>
+      <p class="page-subtitle" id="order-date"></p>
+    </div>
+
+    <!-- Order Details Layout -->
+    <div class="order-details-layout" id="order-content">
+      <!-- Order Items -->
+      <div class="order-items-section">
+        <h3>Order Items</h3>
+        <div id="order-items">
+          <!-- Items loaded by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Order Sidebar -->
+      <div class="order-sidebar">
+        <!-- Order Summary -->
+        <div class="order-summary-card">
+          <h3>Order Summary</h3>
+          
+          <div class="cart-summary-row">
+            <span class="cart-summary-label">Status</span>
+            <span class="order-status" id="order-status"></span>
+          </div>
+
+          <div class="cart-summary-row">
+            <span class="cart-summary-label">Subtotal</span>
+            <span class="cart-summary-value" id="subtotal">$0.00</span>
+          </div>
+          
+          <div class="cart-summary-row">
+            <span class="cart-summary-label">Shipping</span>
+            <span class="cart-summary-value">Free</span>
+          </div>
+          
+          <div class="cart-summary-row">
+            <span class="cart-summary-label">Tax</span>
+            <span class="cart-summary-value" id="tax">$0.00</span>
+          </div>
+
+          <div class="cart-summary-total">
+            <span class="cart-summary-label">Total</span>
+            <span class="cart-summary-value" id="total">$0.00</span>
+          </div>
+        </div>
+
+        <!-- Order Tracking -->
+        <div class="order-tracking-card">
+          <h3>Order Tracking</h3>
+          <div class="tracking-timeline" id="tracking-timeline">
+            <!-- Tracking items loaded by JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div class="empty-state d-none" id="error-state">
+      <i class="fas fa-exclamation-circle"></i>
+      <h3>Order not found</h3>
+      <p>We couldn't find the order you're looking for.</p>
+      <a href="orders.html" class="btn btn-primary btn-lg">
+        <i class="fas fa-arrow-left"></i>
+        Back to Orders
+      </a>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    let orderData = null;
+    let trackingData = null;
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+
+      const orderId = getUrlParam('id');
+      if (!orderId) {
+        showError();
+        return;
+      }
+
+      await loadOrder(orderId);
+    });
+
+    async function loadOrder(orderId) {
+      showLoading();
+
+      try {
+        // Load order details and tracking in parallel
+        const [order, tracking] = await Promise.all([
+          fetchOrder(orderId),
+          trackOrder(orderId).catch(() => null)
+        ]);
+
+        orderData = order;
+        trackingData = tracking;
+        renderOrder();
+      } catch (error) {
+        showToast('error', 'Error', error.message);
+        showError();
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function renderOrder() {
+      const orderContent = document.getElementById('order-content');
+      const errorState = document.getElementById('error-state');
+
+      if (!orderData) {
+        showError();
+        return;
+      }
+
+      orderContent.classList.remove('d-none');
+      errorState.classList.add('d-none');
+
+      // Update header
+      document.getElementById('order-title').textContent = `Order #${orderData.id}`;
+      document.getElementById('order-date').textContent = `Placed on ${formatDate(orderData.created_at)}`;
+
+      // Update status
+      const statusEl = document.getElementById('order-status');
+      statusEl.textContent = orderData.status;
+      statusEl.className = `order-status ${getStatusClass(orderData.status)}`;
+
+      // Render order items
+      const items = orderData.items || orderData.order_items || [];
+      document.getElementById('order-items').innerHTML = items.map(item => `
+        <div class="order-item">
+          <img src="${item.product?.image_url || item.image_url || 'https://via.placeholder.com/80x80?text=No+Image'}" 
+               alt="${item.product?.name || item.name}" 
+               class="order-item-image"
+               onerror="this.src='https://via.placeholder.com/80x80?text=No+Image'">
+          
+          <div class="order-item-details">
+            <h4 class="order-item-name">${item.product?.name || item.name}</h4>
+            <p class="order-item-price">${formatCurrency(item.price)} each</p>
+          </div>
+
+          <div class="order-item-quantity">
+            x${item.quantity}
+          </div>
+
+          <div class="order-item-subtotal">
+            ${formatCurrency(item.price * item.quantity)}
+          </div>
+        </div>
+      `).join('');
+
+      // Update summary
+      const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const tax = subtotal * 0.10;
+      const total = orderData.total_amount || orderData.total || (subtotal + tax);
+
+      document.getElementById('subtotal').textContent = formatCurrency(subtotal);
+      document.getElementById('tax').textContent = formatCurrency(tax);
+      document.getElementById('total').textContent = formatCurrency(total);
+
+      // Render tracking
+      renderTracking();
+    }
+
+    function renderTracking() {
+      const timeline = document.getElementById('tracking-timeline');
+      
+      // Default tracking statuses
+      const defaultStatuses = [
+        { status: 'Order Placed', date: orderData.created_at },
+        { status: 'Processing', date: null },
+        { status: 'Shipped', date: null },
+        { status: 'Delivered', date: null }
+      ];
+
+      // Use tracking data if available, otherwise use defaults
+      const trackingItems = trackingData?.updates || defaultStatuses;
+
+      // Determine current status index
+      const statusOrder = ['pending', 'processing', 'shipped', 'delivered'];
+      const currentStatusIndex = statusOrder.indexOf(orderData.status.toLowerCase());
+
+      timeline.innerHTML = trackingItems.map((item, index) => {
+        const isCompleted = index < currentStatusIndex + 1;
+        const isCurrent = index === currentStatusIndex;
+
+        return `
+          <div class="tracking-item ${isCompleted ? 'completed' : ''} ${isCurrent ? 'current' : ''}">
+            <div class="tracking-status">${item.status}</div>
+            <div class="tracking-date">
+              ${item.date ? formatDate(item.date) : (isCompleted || isCurrent ? 'In Progress' : 'Pending')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function showError() {
+      document.getElementById('order-content').classList.add('d-none');
+      document.getElementById('error-state').classList.remove('d-none');
+    }
+  </script>
+</body>
+</html>

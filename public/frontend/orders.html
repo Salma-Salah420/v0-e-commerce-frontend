@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Orders - ShopHub</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-container">
+      <a href="index.html" class="navbar-brand">
+        <i class="fas fa-shopping-bag"></i>
+        <span>ShopHub</span>
+      </a>
+
+      <div class="navbar-search">
+        <i class="fas fa-search"></i>
+        <input type="text" placeholder="Search products...">
+      </div>
+
+      <button class="mobile-menu-btn">
+        <i class="fas fa-bars"></i>
+      </button>
+
+      <div class="navbar-nav">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="container">
+    <div class="page-header">
+      <h1 class="page-title">My Orders</h1>
+      <p class="page-subtitle" id="orders-info">Track and manage your orders</p>
+    </div>
+
+    <!-- Orders List -->
+    <div class="orders-list" id="orders-list">
+      <!-- Orders loaded by JavaScript -->
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state d-none" id="empty-state">
+      <i class="fas fa-box-open"></i>
+      <h3>No orders yet</h3>
+      <p>You haven't placed any orders yet. Start shopping to see your orders here.</p>
+      <a href="index.html" class="btn btn-primary btn-lg">
+        <i class="fas fa-shopping-bag"></i>
+        Start Shopping
+      </a>
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (!requireAuth()) return;
+      await loadOrders();
+    });
+
+    async function loadOrders() {
+      showLoading();
+
+      try {
+        const orders = await fetchOrders();
+        renderOrders(orders);
+      } catch (error) {
+        showToast('error', 'Error', error.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function renderOrders(orders) {
+      const ordersList = document.getElementById('orders-list');
+      const emptyState = document.getElementById('empty-state');
+      const ordersInfo = document.getElementById('orders-info');
+
+      // Handle both array response and object with items property
+      const ordersArray = Array.isArray(orders) ? orders : (orders?.items || orders?.orders || []);
+
+      if (ordersArray.length === 0) {
+        ordersList.classList.add('d-none');
+        emptyState.classList.remove('d-none');
+        return;
+      }
+
+      ordersList.classList.remove('d-none');
+      emptyState.classList.add('d-none');
+
+      ordersInfo.textContent = `You have ${ordersArray.length} order${ordersArray.length > 1 ? 's' : ''}`;
+
+      ordersList.innerHTML = ordersArray.map(order => `
+        <div class="order-card">
+          <div class="order-header">
+            <div class="order-info">
+              <h3>Order #${order.id}</h3>
+              <p class="order-date">${formatDate(order.created_at)}</p>
+            </div>
+            <span class="order-status ${getStatusClass(order.status)}">${order.status}</span>
+          </div>
+          
+          <div class="order-footer">
+            <div class="order-total">
+              Total: ${formatCurrency(order.total_amount || order.total)}
+            </div>
+            <a href="order-details.html?id=${order.id}" class="btn btn-primary btn-sm">
+              <i class="fas fa-eye"></i>
+              View Details
+            </a>
+          </div>
+        </div>
+      `).join('');
+    }
+  </script>
+</body>
+</html>
