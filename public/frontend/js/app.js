@@ -3,8 +3,8 @@
    Complete API Integration & Functionality
    ============================================= */
 
-// Configuration
-const API_BASE_URL = 'http://localhost:8000/api';
+// Configuration - Change this to your backend URL
+const API_BASE_URL = 'https://your-backend-url.com/api'; // TODO: Replace with your actual backend URL
 
 // =============================================
 // Utility Functions
