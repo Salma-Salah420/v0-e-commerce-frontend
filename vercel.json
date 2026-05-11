@@ -1,0 +1,32 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/frontend/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/frontend/login.html"
+    },
+    {
+      "source": "/register",
+      "destination": "/frontend/register.html"
+    },
+    {
+      "source": "/cart",
+      "destination": "/frontend/cart.html"
+    },
+    {
+      "source": "/orders",
+      "destination": "/frontend/orders.html"
+    },
+    {
+      "source": "/order-details",
+      "destination": "/frontend/order-details.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/frontend/admin.html"
+    }
+  ]
+}
